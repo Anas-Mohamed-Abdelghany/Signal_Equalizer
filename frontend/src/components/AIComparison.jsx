@@ -5,17 +5,45 @@ import Spectrogram from './Spectrogram';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
-/**
- * Fetches the spectrogram data {f, t, Sxx} for an already-saved output file.
- * Calls GET /api/audio/spectrogram/{file_id} — added to routes_audio.py.
- */
+const DOMAINS = [
+    { value: 'fourier',      label: 'Fourier (FFT)', icon: '📊' },
+    { value: 'dct',          label: 'DCT',           icon: '📐' },
+    { value: 'haar_wavelet', label: 'Haar Wavelet',  icon: '〰️' },
+];
+
 async function fetchSpectrogramData(fileId) {
     const res = await fetch(`${API_BASE}/api/audio/spectrogram/${fileId}`);
     if (!res.ok) throw new Error(`Spectrogram fetch failed: ${res.status}`);
-    return res.json(); // { f: [...], t: [...], Sxx: [[...]] }
+    return res.json();
 }
 
-// ── Metric cell — highlights the winner in each row ──────────────────────────
+// ── Domain pill selector ──────────────────────────────────────────────────────
+function DomainPills({ value, onChange }) {
+    return (
+        <div className="flex items-center gap-1 flex-wrap">
+            {DOMAINS.map((d) => {
+                const active = value === d.value;
+                return (
+                    <button
+                        key={d.value}
+                        onClick={() => onChange(d.value)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold
+                                    border transition-all duration-150 select-none
+                                    ${active
+                                        ? 'bg-cyan-600/30 border-cyan-500 text-cyan-200'
+                                        : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'
+                                    }`}
+                    >
+                        <span>{d.icon}</span>
+                        <span>{d.label}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+// ── Metric row ────────────────────────────────────────────────────────────────
 function MetricRow({ label, eqVal, aiVal, lowerIsBetter = false }) {
     const eq = Number(eqVal);
     const ai = Number(aiVal);
@@ -39,16 +67,14 @@ function MetricRow({ label, eqVal, aiVal, lowerIsBetter = false }) {
     );
 }
 
-// ── One output panel (EQ or AI) ───────────────────────────────────────────────
+// ── Output panel ──────────────────────────────────────────────────────────────
 function OutputPanel({ label, accentClass, borderColor, spectrogramData, spectrogramLoading, outputId }) {
     return (
         <div className="flex-1 flex flex-col gap-2 px-4 py-3 min-w-0">
-            {/* Title */}
             <span className={`text-xs font-bold uppercase tracking-wider ${accentClass}`}>
                 {label}
             </span>
 
-            {/* Spectrogram box */}
             <div
                 className="w-full rounded-lg overflow-hidden flex-shrink-0"
                 style={{
@@ -59,11 +85,8 @@ function OutputPanel({ label, accentClass, borderColor, spectrogramData, spectro
                 }}
             >
                 {spectrogramData ? (
-                    <Spectrogram
-                        data={spectrogramData}
-                    />
+                    <Spectrogram data={spectrogramData} />
                 ) : spectrogramLoading ? (
-                    // Skeleton shimmer while loading
                     <div className="w-full h-full flex items-center justify-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-gray-600 animate-bounce [animation-delay:-0.3s]" />
                         <div className="w-2 h-2 rounded-full bg-gray-600 animate-bounce [animation-delay:-0.15s]" />
@@ -76,7 +99,6 @@ function OutputPanel({ label, accentClass, borderColor, spectrogramData, spectro
                 )}
             </div>
 
-            {/* Audio player */}
             {outputId ? (
                 <audio
                     controls
@@ -93,16 +115,20 @@ function OutputPanel({ label, accentClass, borderColor, spectrogramData, spectro
     );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 export default function AIComparison() {
     const { inputFile, mode, gains } = useSignal();
 
+    const [eqDomain,           setEqDomain]           = useState('fourier');
     const [report,             setReport]             = useState(null);
     const [loading,            setLoading]            = useState(false);
     const [eqSpectrogram,      setEqSpectrogram]      = useState(null);
     const [aiSpectrogram,      setAiSpectrogram]      = useState(null);
     const [spectrogramLoading, setSpectrogramLoading] = useState(false);
     const [error,              setError]              = useState(null);
+
+    // Track which domain was used for the last run (shown in the result label)
+    const [runDomain, setRunDomain] = useState(null);
 
     const runComparison = async () => {
         if (!inputFile) return;
@@ -114,21 +140,20 @@ export default function AIComparison() {
         setAiSpectrogram(null);
 
         try {
-            // 1. Run comparison — gets metrics + output IDs
             const result = await compareEqVsAI({
                 file_id: inputFile.id,
                 mode,
                 gains,
+                domain: eqDomain,          // ← pass selected domain to backend
             });
             setReport(result);
+            setRunDomain(eqDomain);
 
-            // 2. Fetch spectrograms for both outputs in parallel
             setSpectrogramLoading(true);
             const [eqSpec, aiSpec] = await Promise.allSettled([
                 fetchSpectrogramData(result.eq_output_id),
                 fetchSpectrogramData(result.ai_output_id),
             ]);
-
             if (eqSpec.status === 'fulfilled') setEqSpectrogram(eqSpec.value);
             if (aiSpec.status === 'fulfilled') setAiSpectrogram(aiSpec.value);
 
@@ -141,7 +166,6 @@ export default function AIComparison() {
         }
     };
 
-    // Determine verdict styling
     const verdictStyle = !report ? null
         : report.verdict?.includes('Equalizer')
             ? { bg: 'bg-cyan-900/30',   text: 'text-cyan-300',   border: 'border-cyan-800/60' }
@@ -149,10 +173,12 @@ export default function AIComparison() {
                 ? { bg: 'bg-purple-900/30', text: 'text-purple-300', border: 'border-purple-800/60' }
                 : { bg: 'bg-gray-800/50',   text: 'text-gray-300',   border: 'border-gray-700' };
 
+    const activeDomainLabel = DOMAINS.find(d => d.value === eqDomain)?.label ?? eqDomain;
+
     return (
         <div className="w-full flex items-stretch overflow-hidden">
 
-            {/* ── Left panel: metrics table + verdict ── */}
+            {/* ── Left panel: domain selector + metrics + verdict ── */}
             <div className="flex flex-col flex-shrink-0 w-[400px] border-r border-gray-800 px-5 py-4 gap-3">
 
                 {/* Header row */}
@@ -172,6 +198,20 @@ export default function AIComparison() {
                     </button>
                 </div>
 
+                {/* Domain selector */}
+                <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-gray-900/60 border border-gray-800">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+                        🎛️ Equalizer Domain
+                    </span>
+                    <DomainPills value={eqDomain} onChange={(v) => {
+                        setEqDomain(v);
+                        // Clear stale results when domain changes
+                        setReport(null);
+                        setEqSpectrogram(null);
+                        setAiSpectrogram(null);
+                    }} />
+                </div>
+
                 {/* Error */}
                 {error && (
                     <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
@@ -182,6 +222,15 @@ export default function AIComparison() {
                 {/* Metrics table */}
                 {report ? (
                     <>
+                        {/* Domain used label */}
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                            <span>EQ domain used:</span>
+                            <span className="text-cyan-400 font-semibold">
+                                {DOMAINS.find(d => d.value === runDomain)?.icon}{' '}
+                                {DOMAINS.find(d => d.value === runDomain)?.label}
+                            </span>
+                        </div>
+
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-gray-700">
@@ -212,14 +261,12 @@ export default function AIComparison() {
                             </tbody>
                         </table>
 
-                        {/* Verdict badge */}
                         <div className={`text-center py-2 px-3 rounded-lg text-xs font-bold
                                          border select-none mt-auto
                                          ${verdictStyle.bg} ${verdictStyle.text} ${verdictStyle.border}`}>
                             🏆 {report.verdict}
                         </div>
 
-                        {/* Method used badge */}
                         {report.method_used && (
                             <div className="text-center text-xs text-gray-500">
                                 AI method:{' '}
@@ -231,7 +278,7 @@ export default function AIComparison() {
                     </>
                 ) : !loading && (
                     <p className="text-xs text-gray-500 text-center mt-2 leading-relaxed">
-                        Upload a signal and adjust sliders,<br />
+                        Choose a domain, upload a signal and adjust sliders,<br />
                         then click <span className="text-purple-400 font-semibold">Compare</span> to see how
                         the equalizer stacks up against the AI model.
                     </p>
@@ -241,9 +288,9 @@ export default function AIComparison() {
             {/* ── Right panels: EQ output | AI output ── */}
             <div className="flex flex-1 min-w-0 divide-x divide-gray-800">
                 <OutputPanel
-                    label="🎛️ Equalizer Output"
+                    label={`🎛️ Equalizer Output ${runDomain ? `(${DOMAINS.find(d => d.value === runDomain)?.icon} ${DOMAINS.find(d => d.value === runDomain)?.label})` : ''}`}
                     accentClass="text-cyan-400"
-                    borderColor="#164e63"   /* cyan-900 */
+                    borderColor="#164e63"
                     spectrogramData={eqSpectrogram}
                     spectrogramLoading={spectrogramLoading && !!report}
                     outputId={report?.eq_output_id}
@@ -251,7 +298,7 @@ export default function AIComparison() {
                 <OutputPanel
                     label="🤖 AI Model Output"
                     accentClass="text-purple-400"
-                    borderColor="#3b0764"   /* purple-950 */
+                    borderColor="#3b0764"
                     spectrogramData={aiSpectrogram}
                     spectrogramLoading={spectrogramLoading && !!report}
                     outputId={report?.ai_output_id}

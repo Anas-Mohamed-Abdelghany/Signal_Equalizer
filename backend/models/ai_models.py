@@ -22,6 +22,10 @@ class CompareRequest(BaseModel):
     file_id: str
     mode: str
     gains: List[float] = Field(..., description="Per-slider gain values.")
+    domain: str = Field(
+        "fourier",
+        description="Transform domain used by the equalizer: 'fourier' | 'dct' | 'haar_wavelet'.",
+    )
 
 
 class MixStemsRequest(BaseModel):
