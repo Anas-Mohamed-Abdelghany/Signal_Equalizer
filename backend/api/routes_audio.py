@@ -1,74 +1,80 @@
+"""
+Audio upload and playback routes.
+
+Models are defined in models/audio_models.py to avoid repetition
+across routes that share the same data contracts.
+"""
+
 import os
 import uuid
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+
 from utils.file_loader import load_audio
 from utils.audio_exporter import save_audio
+from utils.logger import get_logger
 from core.spectrogram import compute_spectrogram
+from models.audio_models import UploadResponse
 
 router = APIRouter(prefix="/api/audio", tags=["audio"])
+logger = get_logger(__name__)
 
 UPLOAD_DIR = "uploads"
+OUTPUT_DIR = "outputs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-class UploadResponse(BaseModel):
-    id: str
-    filename: str
-    duration_sec: float
-    sample_rate: int
-    num_samples: int
+_ALLOWED_EXTENSIONS = {".wav", ".mp3", ".ogg", ".flac", ".m4a"}
 
-@router.post("/upload")
+
+@router.post("/upload", response_model=UploadResponse)
 async def upload_audio(file: UploadFile = File(...)):
     """
-    Receives an audio file, saves it, extracts basic properties, and returns its ID and metadata.
+    Receives an audio file, saves it, extracts basic properties, and
+    returns its UUID and metadata (including the input spectrogram).
     """
-    if not file.filename.lower().endswith((".wav", ".mp3", ".ogg", ".flac", ".m4a")):
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in _ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported file extension.")
-        
+
     file_id = str(uuid.uuid4())
-    ext = os.path.splitext(file.filename)[1]
     save_path = os.path.join(UPLOAD_DIR, f"{file_id}{ext}")
-    
+
     with open(save_path, "wb") as f:
         f.write(await file.read())
-        
+
+    logger.info("Audio file saved", extra={"file_id": file_id, "filename": file.filename})
+
     try:
         data, sr = load_audio(save_path)
-    except Exception as e:
+    except Exception as exc:
         os.remove(save_path)
-        raise HTTPException(status_code=500, detail=f"Error reading audio: {str(e)}")
-        
-    duration = len(data) / sr
-    
-    # Compute input spectrogram
-    f_axis, t_axis, Sxx = compute_spectrogram(data, sr, nperseg=256)
-    
-    return {
-        "id": file_id,
-        "filename": file.filename,
-        "duration_sec": round(duration, 3),
-        "sample_rate": sr,
-        "num_samples": len(data),
-        "spectrogram": {
-            "f": f_axis.tolist(),
-            "t": t_axis.tolist(),
-            "Sxx": Sxx.tolist()
-        }
-    }
+        logger.error("Failed to read audio", extra={"file_id": file_id, "error": str(exc)})
+        raise HTTPException(status_code=500, detail=f"Error reading audio: {exc}")
 
-OUTPUT_DIR = "outputs"
+    f_axis, t_axis, Sxx = compute_spectrogram(data, sr, nperseg=256)
+
+    return UploadResponse(
+        id=file_id,
+        filename=file.filename,
+        duration_sec=round(len(data) / sr, 3),
+        sample_rate=sr,
+        num_samples=len(data),
+        spectrogram={"f": f_axis.tolist(), "t": t_axis.tolist(), "Sxx": Sxx.tolist()},
+    )
+
 
 @router.get("/play/{file_id}")
 async def play_audio(file_id: str):
     """
-    Streams an audio file back to the browser for playback.
+    Streams an audio file back to the browser for in-browser playback.
     Searches both uploads/ and outputs/ directories.
     """
     for directory in [UPLOAD_DIR, OUTPUT_DIR]:
         if os.path.isdir(directory):
             for f in os.listdir(directory):
                 if f.startswith(file_id):
-                    return FileResponse(os.path.join(directory, f), media_type="audio/wav")
+                    path = os.path.join(directory, f)
+                    logger.info("Serving audio", extra={"file_id": file_id, "path": path})
+                    return FileResponse(path, media_type="audio/wav")
+
     raise HTTPException(status_code=404, detail="Audio file not found")
