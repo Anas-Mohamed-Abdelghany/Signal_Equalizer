@@ -2,7 +2,7 @@
     "mode": "animals",
     "sliders": [
         {
-            "label": "Dog (Bark)",
+            "label": "Dog",
             "ranges": [
                 [281,468],
                 [703,843]
@@ -10,7 +10,7 @@
             "default_gain": 1.0
         },
         {
-            "label": "Cat (Meow)",
+            "label": "Cat",
             "ranges": [
                 [1100, 1300],
                 [1700,1900]
@@ -18,14 +18,14 @@
             "default_gain": 1.0
         },
         {
-            "label": "Bird (Chirp)",
+            "label": "Night Cricket",
             "ranges": [
                 [2109, 2156]
             ],
             "default_gain": 1.0
         },
         {
-            "label": "Cow (Moo)",
+            "label": "Cow",
             "ranges": [
                 [129, 281],
                 [468, 703],

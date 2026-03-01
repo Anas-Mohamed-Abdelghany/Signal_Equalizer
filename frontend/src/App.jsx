@@ -118,7 +118,7 @@ function Equalizer() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-slate-900 to-gray-950 text-white">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-950 via-slate-900 to-gray-950 text-white">
       {/* ─── Header ─────────────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur">
         <div className="flex items-center gap-3">
@@ -148,19 +148,39 @@ function Equalizer() {
       </header>
 
       {/* ─── Main Content ───────────────────────────────────────────────────────── */}
-      <main className="flex gap-4 p-4 h-[calc(100vh-130px)]">
-        {/* Left: Input signal */}
-        <div className="flex-1 flex flex-col gap-3">
-          <CineViewer label="Input Signal" audioUrl={inputFile ? getPlayUrl(inputFile.id) : null} />
-          {showSpectrograms && (
-            <Spectrogram label="Input Spectrogram" data={inputSpectrogram} />
-          )}
+      <main
+        className="flex-1 flex gap-4 p-4 main-content"
+        style={{
+          minHeight: 0,
+          height: '0px',
+          flexGrow: 1,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Left: Label above container, flex-col, scrollable overflow */}
+        <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-hidden">
+          {/* Label above container */}
+          <span className="text-sm font-semibold text-gray-300 mb-1 pl-1">Input Signal</span>
+          <div className="flex flex-col gap-3 h-full overflow-hidden">
+            <CineViewer audioUrl={inputFile ? getPlayUrl(inputFile.id) : null} />
+            {showSpectrograms && (
+              <div
+                style={{
+                  flex: 1,
+                  maxHeight: '280px',
+                  minHeight: 0,
+                  overflow: 'auto',
+                }}
+                className="rounded-md overflow-hidden bg-gray-900 border border-gray-800"
+              >
+                <Spectrogram label="Input Spectrogram" data={inputSpectrogram} />
+              </div>
+            )}
+          </div>
         </div>
-
-        {/* Center: Sliders */}
-        <div className="flex flex-col items-center gap-3 bg-gray-900/50 backdrop-blur rounded-xl p-4 border border-gray-800 min-w-[200px]">
+        {/* Center: Sliders + Process Button + Footer aligned together */}
+        <div className="flex flex-col items-center gap-3 bg-gray-900/50 backdrop-blur rounded-xl p-4 border border-gray-800 min-w-[280px] max-w-[380px] w-[360px] h-full">
           <h2 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Equalizer</h2>
-
           {sliderConfig.length > 0 && (
             <div className="flex gap-3">
               {sliderConfig.map((s, i) => (
@@ -173,29 +193,48 @@ function Equalizer() {
               ))}
             </div>
           )}
-
           <button
             onClick={handleProcess}
             disabled={!inputFile || loading}
-            className="mt-auto w-full px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-40 rounded-lg text-sm font-bold transition"
+            className="w-full px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-40 rounded-lg text-sm font-bold transition"
           >
             {loading ? '⏳ Processing...' : '🔊 Apply Equalizer'}
           </button>
+          {/* Footer is now INSIDE the center column and sticks to the bottom */}
+          <div className="mt-auto w-full">
+            <footer className="flex justify-center w-full px-0 py-2 border-t border-gray-800 bg-transparent">
+              <ControlPanel audioUrl={outputFile ? getPlayUrl(outputFile.output_id) : (inputFile ? getPlayUrl(inputFile.id) : null)} />
+            </footer>
+          </div>
         </div>
-
-        {/* Right: Output signal */}
-        <div className="flex-1 flex flex-col gap-3">
-          <CineViewer label="Output Signal" audioUrl={outputFile ? getPlayUrl(outputFile.output_id) : null} />
-          {showSpectrograms && (
-            <Spectrogram label="Output Spectrogram" data={spectrogram} />
-          )}
-          <AIComparison />
+        {/* Right: Label above container, flex-col, scrollable overflow */}
+        <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-hidden">
+          {/* Label above container */}
+          <span className="text-sm font-semibold text-gray-300 mb-1 pl-1">Output Signal</span>
+          <div className="flex flex-col gap-3 h-full overflow-hidden">
+            <CineViewer audioUrl={outputFile ? getPlayUrl(outputFile.output_id) : null} />
+            {showSpectrograms && (
+              <div
+                style={{
+                  flex: 1,
+                  maxHeight: '280px',
+                  minHeight: 0,
+                  overflow: 'auto',
+                }}
+                className="rounded-md overflow-hidden bg-gray-900 border border-gray-800"
+              >
+                <Spectrogram label="Output Spectrogram" data={spectrogram} />
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
-      {/* ─── Bottom Controls ────────────────────────────────────────────────────── */}
-      <footer className="flex justify-center px-6 py-3 border-t border-gray-800 bg-gray-900/50 backdrop-blur">
-        <ControlPanel audioUrl={outputFile ? getPlayUrl(outputFile.output_id) : (inputFile ? getPlayUrl(inputFile.id) : null)} />
+      {/* ─── AI vs Equalizer Footer (full width) ───────────────────────────── */}
+      <footer className="w-full px-0 py-4 border-t border-gray-800 bg-gray-900/50 backdrop-blur flex-shrink-0 z-10">
+        <div className="container mx-auto px-4">
+          <AIComparison />
+        </div>
       </footer>
     </div>
   );
