@@ -8,25 +8,21 @@
 
 ### Main Interface
 <!-- Add screenshot of the full app here -->
-![Main Interface]
 <img width="960" height="540" alt="Screenshot 2026-03-01 152853" src="https://github.com/user-attachments/assets/6705cfaa-c0cb-413f-b53c-d5cbb5873ff7" />
 
 
 ### Equalizer Sliders
 <!-- Add screenshot of the equalizer panel with sliders here -->
-![Equalizer Sliders]
 <img width="275" height="241" alt="Screenshot 2026-03-01 152700" src="https://github.com/user-attachments/assets/373fb2b9-4b68-41cd-99eb-ba3cf64946cd" />
 
 
 ### AI Comparison Panel
 <!-- Add screenshot of the AI vs EQ comparison panel here -->
-![AI Comparison]
 <img width="947" height="210" alt="Screenshot 2026-03-01 152719" src="https://github.com/user-attachments/assets/bee86cb2-329e-44cf-a55d-8e5ece4805c4" />
 
 
 ### Spectrograms
 <!-- Add screenshot of input/output spectrograms here -->
-![Spectrograms]
 <img width="338" height="281" alt="Screenshot 2026-03-01 152735" src="https://github.com/user-attachments/assets/291772e3-3dab-4133-a8c1-8462f08c1ba6" />
 <img width="343" height="285" alt="Screenshot 2026-03-01 152752" src="https://github.com/user-attachments/assets/c067bdd4-9b08-493c-8bd5-7a4bc34ea266" />
 
