@@ -42,7 +42,7 @@ async def upload_audio(file: UploadFile = File(...)):
     with open(save_path, "wb") as f:
         f.write(await file.read())
 
-    logger.info("Audio file saved", extra={"file_id": file_id, "filename": file.filename})
+    logger.info("Audio file saved", extra={"file_id": file_id, "orig_filename": file.filename})
 
     try:
         data, sr = load_audio(save_path)
@@ -74,7 +74,7 @@ async def play_audio(file_id: str):
             for f in os.listdir(directory):
                 if f.startswith(file_id):
                     path = os.path.join(directory, f)
-                    logger.info("Serving audio", extra={"file_id": file_id, "path": path})
+                    logger.info("Serving audio", extra={"file_id": file_id, "file_path": path})
                     return FileResponse(path, media_type="audio/wav")
 
     raise HTTPException(status_code=404, detail="Audio file not found")
