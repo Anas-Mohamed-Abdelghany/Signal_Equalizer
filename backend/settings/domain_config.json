@@ -1,9 +1,16 @@
 {
     "available_domains": [
         "fourier",
-        "dct",
-        "haar_wavelet"
+        "dwt_symlet8",
+        "dwt_db4",
+        "cwt_morlet"
     ],
     "default_domain": "fourier",
+    "domain_info": {
+        "fourier":     { "label": "Fourier (FFT)",       "recommended_for": "Generic" },
+        "dwt_symlet8": { "label": "DWT Symlet-8",        "recommended_for": "Musical Instruments" },
+        "dwt_db4":     { "label": "DWT Daubechies-4",    "recommended_for": "Human Voices, ECG" },
+        "cwt_morlet":  { "label": "CWT Morlet",          "recommended_for": "Animal Sounds" }
+    },
     "saved_configs": []
 }

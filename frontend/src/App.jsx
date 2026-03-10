@@ -13,6 +13,7 @@ import SpectrumViewer from './components/SpectrumViewer';
 import FFTViewer from './components/FFTViewer';
 import AIComparison from './components/AIComparison';
 import GenericMode from './modes/generic/GenericMode';
+import InstrumentsMode from './modes/instruments/InstrumentsMode';
 
 function Equalizer() {
   const {
@@ -188,8 +189,11 @@ function Equalizer() {
             <GenericMode />
           )}
 
-          {/* --- Non-generic modes: standard sliders --- */}
-          {mode !== 'generic' && sliderConfig.length > 0 && (
+          {/* --- Instruments mode: custom component with color badges --- */}
+          {mode === 'instruments' && <InstrumentsMode />}
+
+          {/* --- Other non-generic modes: standard sliders --- */}
+          {mode !== 'generic' && mode !== 'instruments' && sliderConfig.length > 0 && (
             <div className="flex gap-3">
               {sliderConfig.map((s, i) => (
                 <SliderControl

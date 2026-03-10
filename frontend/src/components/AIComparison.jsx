@@ -6,9 +6,10 @@ import Spectrogram from './Spectrogram';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 const DOMAINS = [
-    { value: 'fourier', label: 'Fourier (FFT)', icon: '📊' },
-    { value: 'dct', label: 'DCT', icon: '📐' },
-    { value: 'haar_wavelet', label: 'Haar Wavelet', icon: '〰️' },
+    { value: 'fourier',     label: 'Fourier (FFT)',     icon: '📊' },
+    { value: 'dwt_symlet8', label: 'DWT Symlet-8',      icon: '🎸' },
+    { value: 'dwt_db4',     label: 'DWT Daubechies-4',  icon: '🗣️' },
+    { value: 'cwt_morlet',  label: 'CWT Morlet',         icon: '🐾' },
 ];
 
 async function fetchSpectrogramData(fileId) {

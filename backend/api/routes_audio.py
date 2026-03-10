@@ -107,13 +107,14 @@ def get_spectrum(file_id: str, domain: str = "fourier"):
     for any audio file, using the specified transform domain.
 
     Query params:
-        domain: "fourier" | "dct" | "haar_wavelet"
+        domain: "fourier" | "dwt_symlet8" | "dwt_db4" | "cwt_morlet"
 
     Returns: { freqs: [...], magnitudes: [...], domain: str, sr: int }
     """
     from core.fft import compute_fft
-    from core.dct import compute_dct
-    from core.haar_wavelet import haar_transform
+    from core.dwt_symlet8 import dwt_symlet8_transform
+    from core.dwt_db4 import dwt_db4_transform, build_dwt_freq_axis
+    from core.cwt_morlet import cwt_morlet_transform
 
     path = _find_audio(file_id)
     try:
@@ -132,19 +133,18 @@ def get_spectrum(file_id: str, domain: str = "fourier"):
 
     if domain == "fourier":
         coeffs = compute_fft(data)
-        N_coeffs = len(coeffs)
-        magnitudes = np.abs(coeffs[:N_coeffs // 2])
-        freqs = np.arange(len(magnitudes)) * sr / N_coeffs
-    elif domain == "dct":
-        coeffs = compute_dct(data)
-        N_coeffs = len(coeffs)
-        magnitudes = np.abs(coeffs[:N_coeffs // 2])
-        freqs = np.arange(len(magnitudes)) * sr / (2 * N_coeffs)
-    elif domain == "haar_wavelet":
-        coeffs = haar_transform(data)
-        N_coeffs = len(coeffs)
-        magnitudes = np.abs(coeffs[:N_coeffs // 2])
-        freqs = np.arange(len(magnitudes)) * sr / (2 * N_coeffs)
+        magnitudes = np.abs(coeffs[:len(coeffs) // 2])
+        freqs = np.arange(len(magnitudes)) * sr / len(coeffs)
+    elif domain in ("dwt_symlet8", "dwt_db4"):
+        transform_fn = dwt_symlet8_transform if domain == "dwt_symlet8" else dwt_db4_transform
+        flat_coeffs, level_lengths = transform_fn(data)
+        freqs = build_dwt_freq_axis(level_lengths, sr)
+        magnitudes = np.abs(flat_coeffs)
+    elif domain == "cwt_morlet":
+        coeffs_2d, freqs_hz, scales = cwt_morlet_transform(data, sr=sr)
+        # For display: take RMS magnitude across time for each scale
+        magnitudes = np.sqrt(np.mean(np.abs(coeffs_2d) ** 2, axis=1))
+        freqs = freqs_hz
     else:
         raise HTTPException(status_code=400, detail=f"Unknown domain: {domain}")
 

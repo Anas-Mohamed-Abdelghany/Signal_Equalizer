@@ -1,30 +1,28 @@
+"""
+fourier.py — FFT and IFFT using numpy.
+
+Centralises both forward and inverse transforms so importers
+only need: from core.fft import compute_fft, compute_ifft
+"""
 import numpy as np
 
-def compute_fft(x):
+
+def compute_fft(x: np.ndarray) -> np.ndarray:
     """
-    Computes the 1D Fast Fourier Transform using the Cooley-Tukey Radix-2 algorithm.
-    Does NOT use any built-in FFT libraries.
+    Computes the 1D FFT using numpy.fft.fft.
+    Input is zero-padded to the next power of 2 for consistency
+    with how the rest of the codebase expects the output length.
     """
     x = np.asarray(x, dtype=complex)
-    N = x.shape[0]
-
-    # Stop condition
-    if N <= 1:
-        return x
-
-    # Pad with zeros to the next power of 2 if necessary
+    N = len(x)
     if N & (N - 1) != 0:
-        next_pow_2 = int(2 ** np.ceil(np.log2(N)))
-        x = np.pad(x, (0, next_pow_2 - N), mode='constant')
-        N = next_pow_2
+        next_pow2 = int(2 ** np.ceil(np.log2(N)))
+        x = np.pad(x, (0, next_pow2 - N))
+    return np.fft.fft(x)
 
-    # Recursive split
-    even = compute_fft(x[0::2])
-    odd = compute_fft(x[1::2])
 
-    # Twiddle factors
-    factor = np.exp(-2j * np.pi * np.arange(N) / N)
-
-    half_N = N // 2
-    return np.concatenate([even + factor[:half_N] * odd,
-                           even + factor[half_N:] * odd])
+def compute_ifft(X: np.ndarray) -> np.ndarray:
+    """
+    Computes the 1D IFFT using numpy.fft.ifft.
+    """
+    return np.fft.ifft(np.asarray(X, dtype=complex))

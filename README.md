@@ -398,11 +398,104 @@ All mode configurations live in `backend/settings/` and are plain JSON — edita
 
 ---
 
+## 🧪 Testing the Application
+
+### Running the tests
+
+```bash
+cd backend
+pytest tests/ -v
+```
+
+- `test_fft.py` — validates `compute_fft` matches `numpy.fft.fft`, validates `compute_ifft` reconstructs signal
+- `test_spectrogram.py` — validates custom STFT spectrogram output matches scipy.signal.spectrogram
+
+### Recommended Audio Samples per mode
+
+**Generic Mode:**
+- Any WAV/MP3 file works
+- For best demonstration: a file with multiple distinct frequency components
+- Try the existing `dataset/music1.wav` or any music file
+
+**Musical Instruments Mode:**
+- Need: WAV/MP3 mix with at least 4 distinct instruments
+- Sources: [Freesound.org](https://freesound.org) → "multitrack music mix"
+- Or: [ccMixter](http://ccmixter.org) — Creative Commons music stems
+- Or: download stems individually from [Looperman](https://www.looperman.com) and mix in Audacity
+  (File → Import → Audio × 4 → Tracks → Mix → Mix and Render → File → Export as WAV)
+- Ready to use: `dataset/musical instruments mix.wav`
+
+**Animal Sounds Mode:**
+- Need: WAV mix with at least 4 different animal sounds
+- Sources: [Freesound.org](https://freesound.org) → search "dog bark", "cat meow", "cricket", "cow"
+- Mix 4 clips in Audacity, same procedure as above
+- Ready to use: `dataset/animal_mix_final.wav`
+
+**Human Voices Mode:**
+- Need: WAV mix of at least 4 different speakers (male/female/young/old, varied languages)
+- Sources:
+  - [LibriSpeech via OpenSLR](https://openslr.org/12/) — free multi-speaker audiobooks
+  - [Common Voice by Mozilla](https://commonvoice.mozilla.org/en/datasets) — multilingual, diverse speakers
+  - [VoxCeleb](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/) — celebrity speech clips
+- Ready to use: `dataset/human_mix final.wav` or `dataset/3people.wav`
+
+**ECG Mode (planned):**
+- Need: ECG signals as WAV — 1 normal + 3 arrhythmia types
+- Source: [PhysioNet MIT-BIH Arrhythmia Database](https://physionet.org/content/mitdb/1.0.0/)
+- Conversion: `pip install wfdb` then use `wfdb.rdsamp('record_name')` to load `.dat` files
+
+### Quick test walkthrough
+
+1. Start backend (`py main.py` from `backend/`) and frontend (`npm run dev` from `frontend/`)
+2. Open `http://localhost:5173`
+3. Upload audio via "📂 Upload Audio" button
+4. Select mode (e.g. "🎸 Musical Instruments")
+5. Select domain (e.g. "🎸 DWT Symlet-8")
+6. Adjust sliders (0 = silence that frequency band, 2 = double)
+7. Click "🔊 Apply Equalizer" — output waveform + spectrogram update
+8. Click "⚡ Compare" in AI VS EQUALIZER panel to benchmark vs AI model
+
+---
+
+## 📂 Codebase Changes Log
+
+### Files DELETED
+- `backend/core/ifft.py` — merged into fft.py
+- `backend/core/dct.py` — replaced by DWT/CWT wavelet transforms
+- `backend/core/haar_wavelet.py` — replaced by DWT/CWT wavelet transforms
+- `backend/core/dft.py` — unused O(N²) DFT reference, removed
+
+### Files CREATED
+- `backend/core/dwt_symlet8.py` — DWT Symlet-8 forward/inverse transform
+- `backend/core/dwt_db4.py` — DWT Daubechies-4 forward/inverse + freq axis builder
+- `backend/core/cwt_morlet.py` — CWT Morlet forward/inverse transform
+- `frontend/src/modes/instruments/InstrumentsMode.jsx` — custom instruments equalizer UI
+
+### Files MODIFIED
+- `backend/core/fft.py` — rewritten using numpy (compute_fft + compute_ifft merged)
+- `backend/modes/generic_mode.py` — supports 4 new domains, DWT/CWT code paths added
+- `backend/core/basis_detection.py` — tests 4 new domains (fourier/symlet8/db4/morlet)
+- `backend/api/routes_audio.py` — spectrum endpoint updated for new domains
+- `backend/ai/demucs_wrapper.py` — import path for compute_ifft fixed (1 line)
+- `backend/tests/test_fft.py` — import path for compute_ifft fixed (1 line)
+- `backend/settings/domain_config.json` — updated available_domains list
+- `backend/models/basis_models.py` — written from scratch (was empty)
+- `requirements.txt` — added PyWavelets
+- `frontend/src/components/DomainSelector.jsx` — new domain options
+- `frontend/src/components/AIComparison.jsx` — new domain options
+- `frontend/src/components/FFTViewer.jsx` — new domain labels and colors
+- `frontend/src/App.jsx` — InstrumentsMode component plugged in
+- `README.md` — testing guide + codebase changes log added
+
+---
+
 ## ⚙️ Implementation Notes
 
-- **FFT / Spectrogram** — implemented from scratch in `core/fft.py`, `core/ifft.py`, and `core/spectrogram.py` using NumPy only (no `scipy.fft` or `numpy.fft` for the core transform).
-- **Soft masking** — Gaussian-shaped frequency masks replace hard binary cutoffs, preserving signal energy at band edges.
-- **Basis detection** — `core/basis_detection.py` evaluates Fourier, DCT, and Haar wavelet representations and selects the sparsest (best) basis for a given signal.
+- **FFT / IFFT** — `core/fft.py` provides both `compute_fft` and `compute_ifft` using `numpy.fft`. Input is zero-padded to the next power of 2.
+- **DWT transforms** — `core/dwt_symlet8.py` and `core/dwt_db4.py` use PyWavelets (`pywt`) with 8-level decomposition. `build_dwt_freq_axis` maps each level to its center frequency.
+- **CWT transform** — `core/cwt_morlet.py` uses complex Morlet wavelet with 64 log-spaced scales covering 20 Hz – 10 kHz. Includes robust fallback for inverse CWT.
+- **Soft masking** — Gaussian-shaped frequency masks replace hard binary cutoffs, preserving signal energy at band edges. `_soft_band_mask` handles Fourier's mirrored negative frequencies; `_soft_band_mask_1d` handles positive-only DWT/CWT frequencies.
+- **Basis detection** — `core/basis_detection.py` evaluates Fourier, DWT-Symlet8, DWT-db4, and CWT-Morlet representations and selects the sparsest (best) basis for a given signal.
 - **Linked viewers** — both cine viewers share the same time position and zoom level via `SignalContext`.
 - **Audiogram scale** — frequency axis can be switched to audiogram (dB HL) scale for hearing-related analysis.
 ---

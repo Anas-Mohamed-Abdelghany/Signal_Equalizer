@@ -11,6 +11,7 @@ loguru
 numpy
 scipy
 soundfile
+PyWavelets
 
 # Utilities / Development
 tqdm

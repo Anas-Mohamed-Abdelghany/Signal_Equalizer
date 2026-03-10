@@ -21,7 +21,7 @@ import numpy as np
 from pathlib import Path
 from utils.logger import get_logger
 from core.fft import compute_fft
-from core.ifft import compute_ifft
+from core.fft import compute_ifft
 
 logger = get_logger(__name__)
 

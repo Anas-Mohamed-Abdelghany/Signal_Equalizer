@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from core.fft import compute_fft
-from core.ifft import compute_ifft
+from core.fft import compute_ifft
 
 def test_custom_fft_vs_numpy():
     # 1. Test with a power of 2 length

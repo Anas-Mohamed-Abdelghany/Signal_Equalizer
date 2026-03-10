@@ -4,9 +4,10 @@ import { getSpectrum } from '../core/ApiService';
 import { freqToX, freqToXLinear, formatFreq, getAudiogramTicks, getLinearTicks } from '../utils/audiogramScale';
 
 const DOMAIN_LABELS = {
-    fourier: 'Fourier (FFT)',
-    dct: 'DCT',
-    haar_wavelet: 'Haar Wavelet',
+    fourier:     'Fourier (FFT)',
+    dwt_symlet8: 'DWT Symlet-8',
+    dwt_db4:     'DWT Daubechies-4',
+    cwt_morlet:  'CWT Morlet',
 };
 
 /**
@@ -117,9 +118,10 @@ export default function FFTViewer({ label, fileId }) {
 
         // Pick color by domain
         const domainColors = {
-            fourier: '#06b6d4',      // cyan
-            dct: '#a855f7',          // purple
-            haar_wavelet: '#f59e0b', // amber
+            fourier:     '#06b6d4',   // cyan
+            dwt_symlet8: '#f59e0b',   // amber
+            dwt_db4:     '#a855f7',   // purple
+            cwt_morlet:  '#10b981',   // emerald
         };
         const lineColor = domainColors[domain] || '#06b6d4';
 

@@ -1,9 +1,10 @@
 import { useSignal } from '../core/SignalContext';
 
 const DOMAINS = [
-    { value: 'fourier', label: '📊 Fourier (FFT)' },
-    { value: 'dct', label: '📐 DCT' },
-    { value: 'haar_wavelet', label: '〰️ Haar Wavelet' },
+    { value: 'fourier',     label: '📊 Fourier (FFT)' },
+    { value: 'dwt_symlet8', label: '🎸 DWT Symlet-8' },
+    { value: 'dwt_db4',     label: '🗣️ DWT Daubechies-4' },
+    { value: 'cwt_morlet',  label: '🐾 CWT Morlet' },
 ];
 
 export default function DomainSelector() {
