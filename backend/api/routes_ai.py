@@ -67,12 +67,12 @@ def _load_mode_bands(mode: str):
 
 def _separate_by_mode(signal, sr, mode, bands):
     if mode == "instruments":
-        separated = demucs_separate(signal, sr)
+        separated = demucs_separate(signal, sr, bands=bands)
         method = "demucs" if _DEMUCS_AVAILABLE else "spectral"
     elif mode == "voices":
         num_voices = len(bands) if bands else 4
-        separated = asteroid_separate(signal, sr, num_voices=num_voices)
-        method = "asteroid" if _ASTEROID_AVAILABLE else "spectral"
+        separated = asteroid_separate(signal, sr, num_voices=num_voices, bands=bands)
+        method = "dptnet" if _ASTEROID_AVAILABLE else "spectral"
     elif mode == "animals":
         separated = animals_nmf_separate(signal, sr, bands)
         method = "nmf" if _NMF_AVAILABLE else "spectral"
@@ -96,7 +96,7 @@ def get_capabilities():
         "nmf_available":      _NMF_AVAILABLE,
         "ica_available":      _ICA_AVAILABLE,
         "instruments_method": "demucs"   if _DEMUCS_AVAILABLE   else "spectral",
-        "voices_method":      "asteroid" if _ASTEROID_AVAILABLE else "spectral",
+        "voices_method":      "dptnet" if _ASTEROID_AVAILABLE else "spectral",
         "animals_method":     "nmf"      if _NMF_AVAILABLE      else "spectral",
         "ecg_method":         "ica"      if _ICA_AVAILABLE      else "spectral",
     }

@@ -159,25 +159,31 @@ def _build_htdemucs_from_pkg(pkg: dict) -> "torch.nn.Module":
 def demucs_separate(
     signal: np.ndarray,
     sr: int,
+    bands: list = None,
 ) -> list[dict]:
     """
-    Separates a mono audio signal into 4 instrument stems using Demucs.
+    Separates a mono audio signal into instrument stems using Demucs.
 
-    Stems returned: drums, bass, other, vocals.
+    Stems returned: drums, bass, other, vocals (from htdemucs model).
 
-    Falls back to spectral masking if Demucs is unavailable or the local
-    model file is missing.
+    When Demucs is unavailable or the model file is missing, falls back to
+    spectral masking using `bands` from instruments.json so that slider
+    labels and frequency ranges match the UI exactly.
 
     Args:
         signal: 1D numpy array, mono audio at `sr` Hz.
         sr:     Sample rate of the signal.
+        bands:  List of {label, ranges} dicts loaded from instruments.json.
+                Used only by the spectral fallback.
 
     Returns:
         List of dicts: [{"label": str, "signal": np.ndarray}, ...]
     """
+    fallback_bands = bands if bands else _demucs_fallback_bands()
+
     if not _DEMUCS_AVAILABLE:
         logger.warning("Demucs package unavailable — using spectral fallback")
-        return spectral_separate(signal, sr, _demucs_fallback_bands())
+        return spectral_separate(signal, sr, fallback_bands)
 
     try:
         model = _load_demucs_model()
@@ -231,14 +237,14 @@ def demucs_separate(
 
     except FileNotFoundError as exc:
         logger.error(str(exc))
-        return spectral_separate(signal, sr, _demucs_fallback_bands())
+        return spectral_separate(signal, sr, fallback_bands)
 
     except Exception as exc:
         logger.error(
             "Demucs inference failed — falling back to spectral masking",
             extra={"error": str(exc)},
         )
-        return spectral_separate(signal, sr, _demucs_fallback_bands())
+        return spectral_separate(signal, sr, fallback_bands)
 
 
 def _demucs_fallback_bands() -> list[dict]:
