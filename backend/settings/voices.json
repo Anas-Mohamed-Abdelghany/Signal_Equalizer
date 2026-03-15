@@ -2,31 +2,32 @@
     "mode": "voices",
     "sliders": [
         {
-            "label": "Spanish woman Voice",
-            "ranges": [
-                [800, 2500]
-            ],
-            "default_gain": 1.0
-        },
-        {
-            "label": "Female Voice",
-            "ranges": [
-                [2500, 8000]
-            ],
-            "default_gain": 1.0
-        },
-        {
             "label": "Man Voice",
             "ranges": [
-                [100, 500]
+                [85, 180],
+                [250, 500]
             ],
             "default_gain": 1.0
         },
         {
             "label": "Old Man Voice",
             "ranges": [
-                [400, 600],
-                [2000, 3000]
+                [70, 150],
+                [1000, 2500]
+            ],
+            "default_gain": 1.0
+        },
+        {
+            "label": "Female Voice",
+            "ranges": [
+                [165, 3500]
+            ],
+            "default_gain": 1.0
+        },
+        {
+            "label": "Spanish woman Voice",
+            "ranges": [
+                [220, 5000]
             ],
             "default_gain": 1.0
         }
