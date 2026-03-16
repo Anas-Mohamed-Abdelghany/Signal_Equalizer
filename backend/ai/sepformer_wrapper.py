@@ -33,17 +33,14 @@ import tempfile
 import os
 from pathlib import Path
 from utils.logger import get_logger
-from ai.demucs_wrapper import spectral_separate  # reuse spectral fallback
+from ai.demucs_wrapper import spectral_separate
+from ai.ai_config import PRETRAINED_DIR, load_mode_bands
 
 logger = get_logger(__name__)
 
-# ── Pretrained model cache directory ─────────────────────────────────────────
-# Resolve: ai/ → project root → pretrained_models/
-_MODEL_DIR = Path(__file__).resolve().parent.parent / "pretrained_models" / "sepformer-whamr"
+_MODEL_DIR        = PRETRAINED_DIR / "sepformer-whamr"
 _SEPFORMER_SOURCE = "speechbrain/sepformer-whamr"
-
-# SepFormer (sepformer-whamr) was trained at 8 kHz
-_SEPFORMER_SR = 8000
+_SEPFORMER_SR     = 8000
 
 # ── Try importing SpeechBrain ─────────────────────────────────────────────────
 try:
@@ -192,91 +189,48 @@ def sepformer_separate(
     signal: np.ndarray,
     sr: int,
     num_voices: int = 4,
+    bands: list = None,
 ) -> list[dict]:
     """
-    Separates a mixture of voices into individual speaker tracks using SepFormer.
-
-    Uses recursive 2-speaker separation to produce up to 4 voices:
-      Pass 1  → [A, B]
-      Pass 2a → A → [voice_1, voice_2]
-      Pass 2b → B → [voice_3, voice_4]
-
-    Falls back to spectral masking if SpeechBrain is unavailable or
-    inference fails.
-
-    Args:
-        signal:     1-D numpy array, mono audio at `sr` Hz.
-        sr:         Sample rate of the input signal.
-        num_voices: Target number of voices (2 or 4; default 4).
-
-    Returns:
-        List of dicts: [{"label": "Voice 1", "signal": np.ndarray}, ...]
-        All signals are returned at the original `sr`.
+    Separates voices using SepFormer. Falls back to spectral masking
+    using bands from voices.json when unavailable.
     """
     if not _SEPFORMER_AVAILABLE:
         logger.warning("SpeechBrain unavailable — using spectral fallback")
-        return _spectral_voice_fallback(signal, sr, num_voices)
+        return _spectral_voice_fallback(signal, sr, num_voices, bands)
 
     try:
         model = _load_sepformer_model()
-
-        # Resample to 8 kHz (model's native rate)
         signal_8k = _resample(signal, sr, _SEPFORMER_SR).astype(np.float32)
         logger.info("Running SepFormer pass 1", extra={"samples": len(signal_8k)})
-
-        # ── Pass 1: split mix into two halves ──────────────────────────────
         voice_a, voice_b = _sepformer_pass(model, signal_8k)
 
         if num_voices == 2:
-            results = [
-                {
-                    "label":  "Voice 1",
-                    "signal": _resample(voice_a, _SEPFORMER_SR, sr).astype(np.float64),
-                },
-                {
-                    "label":  "Voice 2",
-                    "signal": _resample(voice_b, _SEPFORMER_SR, sr).astype(np.float64),
-                },
+            return [
+                {"label": "Voice 1", "signal": _resample(voice_a, _SEPFORMER_SR, sr).astype(np.float64)},
+                {"label": "Voice 2", "signal": _resample(voice_b, _SEPFORMER_SR, sr).astype(np.float64)},
             ]
-            logger.info("SepFormer 2-voice separation complete")
-            return results
 
-        # ── Pass 2a: split voice_a → voice_1, voice_2 ─────────────────────
         logger.info("Running SepFormer pass 2a")
         voice_1, voice_2 = _sepformer_pass(model, voice_a)
-
-        # ── Pass 2b: split voice_b → voice_3, voice_4 ─────────────────────
         logger.info("Running SepFormer pass 2b")
         voice_3, voice_4 = _sepformer_pass(model, voice_b)
 
-        results = [
-            {
-                "label":  "Voice 1",
-                "signal": _resample(voice_1, _SEPFORMER_SR, sr).astype(np.float64),
-            },
-            {
-                "label":  "Voice 2",
-                "signal": _resample(voice_2, _SEPFORMER_SR, sr).astype(np.float64),
-            },
-            {
-                "label":  "Voice 3",
-                "signal": _resample(voice_3, _SEPFORMER_SR, sr).astype(np.float64),
-            },
-            {
-                "label":  "Voice 4",
-                "signal": _resample(voice_4, _SEPFORMER_SR, sr).astype(np.float64),
-            },
+        # Label outputs using bands from JSON if available
+        labels = [b["label"] for b in bands] if bands and len(bands) >= 4 else \
+                 ["Voice 1", "Voice 2", "Voice 3", "Voice 4"]
+
+        return [
+            {"label": labels[0], "signal": _resample(voice_1, _SEPFORMER_SR, sr).astype(np.float64)},
+            {"label": labels[1], "signal": _resample(voice_2, _SEPFORMER_SR, sr).astype(np.float64)},
+            {"label": labels[2], "signal": _resample(voice_3, _SEPFORMER_SR, sr).astype(np.float64)},
+            {"label": labels[3], "signal": _resample(voice_4, _SEPFORMER_SR, sr).astype(np.float64)},
         ]
 
-        logger.info("SepFormer 4-voice separation complete")
-        return results
-
     except Exception as exc:
-        logger.error(
-            "SepFormer inference failed — falling back to spectral masking",
-            extra={"error": str(exc)},
-        )
-        return _spectral_voice_fallback(signal, sr, num_voices)
+        logger.error("SepFormer inference failed — falling back to spectral masking",
+                     extra={"error": str(exc)})
+        return _spectral_voice_fallback(signal, sr, num_voices, bands)
 
 
 # ── Backward-compat alias ─────────────────────────────────────────────────────
@@ -286,13 +240,11 @@ asteroid_separate = sepformer_separate
 
 # ── Spectral fallback for voices ──────────────────────────────────────────────
 
-# Human voice frequency bands — each "speaker" slot occupies a slightly
-# different sub-range of the 80–3400 Hz speech band.
 _VOICE_FALLBACK_BANDS = [
-    {"label": "Voice 1", "ranges": [[80,   800]]},
-    {"label": "Voice 2", "ranges": [[200, 1600]]},
-    {"label": "Voice 3", "ranges": [[400, 2500]]},
-    {"label": "Voice 4", "ranges": [[600, 3400]]},
+    {"label": "Man Voice",           "ranges": [[85,  180], [250,  500]]},
+    {"label": "Old Man Voice",       "ranges": [[70,  150], [1000, 2500]]},
+    {"label": "Female Voice",        "ranges": [[165, 3500]]},
+    {"label": "Spanish woman Voice", "ranges": [[220, 5000]]},
 ]
 
 
@@ -300,7 +252,14 @@ def _spectral_voice_fallback(
     signal: np.ndarray,
     sr: int,
     num_voices: int,
+    bands: list = None,
 ) -> list[dict]:
-    """Returns spectral-mask separated voices when SepFormer is unavailable."""
-    bands = _VOICE_FALLBACK_BANDS[:num_voices]
-    return spectral_separate(signal, sr, bands)
+    """Fallback: bands from arg → voices.json → hardcoded."""
+    if bands:
+        active = bands[:num_voices]
+    else:
+        try:
+            active = load_mode_bands("voices")[:num_voices]
+        except Exception:
+            active = _VOICE_FALLBACK_BANDS[:num_voices]
+    return spectral_separate(signal, sr, active)

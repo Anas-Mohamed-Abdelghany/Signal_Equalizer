@@ -30,8 +30,10 @@ logger = get_logger(__name__)
 _MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 _DEMUCS_MODEL_PATH = _MODEL_DIR / "5c90dfd2-34c22ccb.th"
 
-# htdemucs 4-source stem order (matches the checkpoint)
-_DEMUCS_STEMS = ["drums", "bass", "other", "vocals"]
+# htdemucs stem order — read dynamically from the checkpoint at load time.
+# Your model is htdemucs_6s: drums, bass, other, vocals, guitar, piano.
+# _DEMUCS_STEMS is used as the fallback only if the model has no sources attr.
+_DEMUCS_STEMS = ["drums", "bass", "other", "vocals", "guitar", "piano"]
 
 # ── Try importing Demucs (optional dependency) ───────────────────────────────
 try:
@@ -144,7 +146,7 @@ def _build_htdemucs_from_pkg(pkg: dict) -> "torch.nn.Module":
         }
         kwargs = {k: v for k, v in args_dict.items() if k in _HTDEMUCS_KEYS}
 
-    # sources must be a list of strings
+    # sources must be a list of strings — read from kwargs or use 6-stem default
     if "sources" not in kwargs:
         kwargs["sources"] = _DEMUCS_STEMS
 
@@ -217,8 +219,11 @@ def demucs_separate(
 
         stems = sources[0].cpu().numpy()       # (n_sources, 2, N)
 
+        # Read stem labels from the model itself (works for both 4s and 6s)
+        model_stems = list(model.sources) if hasattr(model, "sources") else _DEMUCS_STEMS
+
         results = []
-        for i, label in enumerate(_DEMUCS_STEMS):
+        for i, label in enumerate(model_stems):
             if i >= stems.shape[0]:
                 break
             stem_mono = stems[i].mean(axis=0)  # stereo → mono: (N,)
@@ -233,6 +238,8 @@ def demucs_separate(
             })
 
         logger.info("Demucs separation complete", extra={"num_stems": len(results)})
+        # Demucs returns its own stem labels (drums/bass/other/vocals).
+        # JSON bands are only used by the spectral fallback below.
         return results
 
     except FileNotFoundError as exc:
@@ -247,17 +254,24 @@ def demucs_separate(
         return spectral_separate(signal, sr, fallback_bands)
 
 
+
 def _demucs_fallback_bands() -> list[dict]:
-    """Frequency bands used by the spectral fallback for the 4 Demucs stems."""
-    return [
-        {"label": "drums",  "ranges": [[20,  500]]},
-        {"label": "bass",   "ranges": [[30,  300]]},
-        {"label": "other",  "ranges": [[200, 4000]]},
-        {"label": "vocals", "ranges": [[300, 3400]]},
-    ]
+    """
+    Loads instrument frequency bands dynamically from instruments.json.
+    Falls back to hardcoded values matching htdemucs_6s stem names.
+    """
+    try:
+        return load_mode_bands("instruments")
+    except Exception:
+        return [
+            {"label": "drums",  "ranges": [[20,   500]]},
+            {"label": "bass",   "ranges": [[30,   300]]},
+            {"label": "other",  "ranges": [[200, 4000]]},
+            {"label": "vocals", "ranges": [[300, 3400]]},
+            {"label": "guitar", "ranges": [[80,  1200]]},
+            {"label": "piano",  "ranges": [[28,  4186]]},
+        ]
 
-
-# ── Soft spectral masking fallback ────────────────────────────────────────────
 
 def _soft_mask(
     freqs: np.ndarray,
@@ -295,35 +309,47 @@ def _soft_mask(
 
 def spectral_separate(signal: np.ndarray, sr: int, source_bands: list) -> list[dict]:
     """
-    Separates a signal into multiple sources using soft spectral masking.
-    This is the fallback used when real AI models are unavailable.
+    Separates a signal into multiple sources using Wiener-style soft masking.
+
+    Enhancement over basic spectral masking:
+      1. Computes a soft mask per source based on its band definition.
+      2. Applies Wiener filtering: each source mask is normalised by the
+         sum of ALL source masks, so sources compete for shared frequency
+         bins rather than each independently claiming them.
+         mask_i_wiener = mask_i / (sum_j mask_j + eps)
+      3. This eliminates double-counting and bleed between overlapping bands.
 
     Args:
         signal:       1D numpy array of the mixture.
         sr:           Sample rate.
-        source_bands: List of dicts, each with:
-                        - label  (str):              e.g. "vocals"
-                        - ranges (list of [lo, hi]): frequency bands in Hz
+        source_bands: List of dicts with label and ranges.
 
     Returns:
         List of dicts: [{"label": str, "signal": np.ndarray}]
     """
-    N = len(signal)
-    X = compute_fft(signal)
+    N     = len(signal)
+    X     = compute_fft(signal)
     N_fft = len(X)
     freqs = np.arange(N_fft) * sr / N_fft
 
-    results = []
+    # Build raw mask for every source
+    raw_masks = []
     for source in source_bands:
         combined_mask = np.zeros(N_fft)
         for (low, high) in source.get("ranges", []):
             combined_mask += _soft_mask(freqs, low, high, sr)
             combined_mask += _soft_mask(freqs, sr - high, sr - low, sr)
+        raw_masks.append(np.clip(combined_mask, 0.0, 1.0))
 
-        combined_mask = np.clip(combined_mask, 0.0, 1.0)
-        X_source = X * combined_mask
+    # Wiener normalisation: divide each mask by the sum of all masks
+    # so bins are shared proportionally rather than duplicated
+    mask_sum = np.sum(raw_masks, axis=0) + 1e-8
+    wiener_masks = [m / mask_sum for m in raw_masks]
+
+    results = []
+    for source, wiener_mask in zip(source_bands, wiener_masks):
+        X_source      = X * wiener_mask
         reconstructed = np.real(compute_ifft(X_source)[:N])
-
         results.append({"label": source["label"], "signal": reconstructed})
 
     return results

@@ -39,17 +39,15 @@ import numpy as np
 import tempfile
 from pathlib import Path
 from utils.logger import get_logger
-from ai.demucs_wrapper import spectral_separate  # reuse spectral fallback
+from ai.demucs_wrapper import spectral_separate
+from ai.ai_config import PRETRAINED_DIR, load_mode_bands
 
 logger = get_logger(__name__)
 
-# ── HuggingFace token ─────────────────────────────────────────────────────────
-# Loaded once at import time.  Users set HF_TOKEN in their environment or .env.
 def _load_hf_token() -> str | None:
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
     if token:
         return token.strip()
-    # Try loading from a .env file in the project root (ai/ → root)
     env_path = Path(__file__).resolve().parent.parent / ".env"
     if env_path.exists():
         with open(env_path) as fh:
@@ -59,14 +57,10 @@ def _load_hf_token() -> str | None:
                     return line.split("=", 1)[1].strip().strip('"').strip("'")
     return None
 
-_HF_TOKEN = _load_hf_token()
-
-# ── Model cache directory ─────────────────────────────────────────────────────
-_MODEL_DIR = Path(__file__).resolve().parent.parent / "pretrained_models" / "pyannote"
+_HF_TOKEN    = _load_hf_token()
+_MODEL_DIR   = PRETRAINED_DIR / "pyannote"
 _PYANNOTE_MODEL = "pyannote/speaker-diarization-3.1"
-
-# Gender F0 threshold — voices with mean F0 below this are labelled Male
-_GENDER_F0_HZ = 165.0
+_GENDER_F0_HZ   = 165.0
 
 # ── Try importing pyannote ────────────────────────────────────────────────────
 try:

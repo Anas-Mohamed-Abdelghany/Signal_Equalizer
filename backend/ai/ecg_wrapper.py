@@ -1,6 +1,7 @@
 import numpy as np
 from utils.logger import get_logger
 from ai.demucs_wrapper import spectral_separate
+from ai.ai_config import load_mode_bands
 
 logger = get_logger(__name__)
 
@@ -74,4 +75,8 @@ def ecg_ica_separate(signal: np.ndarray, sr: int, source_bands: list) -> list[di
         
     except Exception as e:
         logger.error(f"ICA separation failed: {e}")
+        try:
+            source_bands = load_mode_bands("ecg")
+        except Exception:
+            pass
         return spectral_separate(signal, sr, source_bands)

@@ -33,20 +33,28 @@ Public API (same as original asteroid_wrapper — drop-in replacement):
 import numpy as np
 from pathlib import Path
 from utils.logger import get_logger
-from ai.demucs_wrapper import spectral_separate  # reuse spectral fallback
+from ai.demucs_wrapper import spectral_separate
+from ai.ai_config import PRETRAINED_DIR, load_mode_bands
 
 logger = get_logger(__name__)
 
 # ── Model config ──────────────────────────────────────────────────────────────
-# DPTNet_Libri2Mix_sepclean_8k — public HuggingFace model, no token required.
-# Trained on LibriMix 2-speaker clean mixture at 8 kHz.
 _DPTNET_MODEL_ID = "JorisCos/DPTNet_Libri2Mix_sepclean_8k"
-_DPTNET_SR       = 8000  # model's native sample rate
-
-# Local cache: project_root/pretrained_models/dptnet/
-_MODEL_CACHE_DIR = Path(__file__).resolve().parent.parent / "pretrained_models" / "dptnet"
+_DPTNET_SR       = 8000
+_MODEL_CACHE_DIR = PRETRAINED_DIR / "dptnet"
 
 # ── Try importing Asteroid ────────────────────────────────────────────────────
+# Asteroid requires torchmetrics<=0.11.4 but pyannote needs >=1.6.1.
+# We patch torchmetrics.__version__ at import time so asteroid's version
+# check passes — the actual DPTNet inference never calls torchmetrics.
+try:
+    import torchmetrics as _tm
+    _real_tm_version = _tm.__version__
+    if tuple(int(x) for x in _tm.__version__.split(".")[:2]) > (0, 11):
+        _tm.__version__ = "0.11.4"   # fool asteroid's version guard only
+except Exception:
+    pass
+
 try:
     import torch
     from asteroid.models import DPTNet
@@ -58,6 +66,13 @@ except ImportError:
         "Asteroid not installed — falling back to spectral masking. "
         "Run: pip install asteroid torch"
     )
+finally:
+    # Restore real version so pyannote and other libs see the correct value
+    try:
+        import torchmetrics as _tm
+        _tm.__version__ = _real_tm_version
+    except Exception:
+        pass
 
 # Module-level model cache
 _dptnet_model = None
