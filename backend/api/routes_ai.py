@@ -33,6 +33,7 @@ from models.ai_models import (
     MixStemsRequest,
     MixStemsResponse,
 )
+from ai.ecg_wrapper import ecg_ica_separate, _ICA_AVAILABLE, classify_ecg, classify_ecg_full
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 logger = get_logger(__name__)
@@ -337,3 +338,26 @@ def mix_stems(req: MixStemsRequest):
         num_samples=len(mixed),
         sample_rate=req.sample_rate,
     )
+
+@router.post("/classify_ecg_full")
+def classify_ecg_full_endpoint(req: AIProcessRequest):
+    """
+    Full 12-channel ECG classification with slider gain support.
+    Loads {file_id}_12ch.csv, applies per-disease bandpass gains,
+    runs the Keras ResNet, returns diagnosis + 12-channel lead data.
+    """
+    result = classify_ecg_full(
+        file_id    = req.file_id,
+        gains      = req.gains if req.gains else [],
+        upload_dir = UPLOAD_DIR,
+    )
+    logger.info(
+        "ECG full classification endpoint",
+        extra={
+            "file_id":      req.file_id,
+            "detected":     result.get("detected_diseases", []),
+            "suspected":    result.get("suspected_diseases", []),
+            "is_diseased":  result["is_diseased"],
+        }
+    )
+    return result

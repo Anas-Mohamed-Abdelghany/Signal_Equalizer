@@ -15,6 +15,7 @@ class AIProcessRequest(BaseModel):
         ...,
         description="'instruments' → Demucs | 'voices' → Asteroid | 'animals' → spectral",
     )
+    gains: list[float] | None = None
 
 
 class CompareRequest(BaseModel):

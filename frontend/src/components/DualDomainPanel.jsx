@@ -28,7 +28,17 @@ const WAVELET_LABELS = {
  *   1. Frequency Domain  — FFT plot + frequency-based sliders (domain = "fourier")
  *   2. Wavelet Domain    — wavelet plot + wavelet-based sliders (mode-optimal wavelet)
  *
- * Each section processes independently and displays its own FFT/wavelet magnitude plot.
+ * For ECG mode, also renders the ECGDiagnosis panel above the equalizer sections.
+ * ECGDiagnosis receives:
+ *   - fileId = inputFile.id (the ORIGINAL uploaded file, not the EQ output)
+ *   - gains = current frequency-domain slider gains
+ *
+ * This wires the slider → bandpass filter → re-classify feedback loop:
+ *   1. User moves a slider (e.g. AF gain = 0)
+ *   2. ECGDiagnosis calls /classify_ecg_full with gains
+ *   3. Backend suppresses the 4-10 Hz and 350-600 Hz bands in all 12 leads
+ *   4. Keras model re-classifies → AF score drops
+ *   5. Score bar animates down in real time
  */
 export default function DualDomainPanel() {
     const {
@@ -42,12 +52,12 @@ export default function DualDomainPanel() {
         waveletSpectrogram, setWaveletSpectrogram,
     } = useSignal();
 
-    const [sliderConfig, setSliderConfig] = useState([]);
-    const [freqLoading, setFreqLoading] = useState(false);
+    const [sliderConfig, setSliderConfig]   = useState([]);
+    const [freqLoading, setFreqLoading]     = useState(false);
     const [waveletLoading, setWaveletLoading] = useState(false);
 
     const optimalWavelet = OPTIMAL_WAVELET[mode] || 'dwt_db4';
-    const waveletLabel = WAVELET_LABELS[optimalWavelet] || optimalWavelet;
+    const waveletLabel   = WAVELET_LABELS[optimalWavelet] || optimalWavelet;
 
     // Load slider config when mode changes
     useEffect(() => {
@@ -58,7 +68,7 @@ export default function DualDomainPanel() {
         }).catch(console.error);
     }, [mode]);
 
-    // --- Frequency Domain Processing ---
+    // ── Frequency Domain Processing ─────────────────────────────────────────
     const processFrequency = useCallback(async () => {
         if (!inputFile || sliderConfig.length === 0) return;
         setFreqLoading(true);
@@ -77,14 +87,13 @@ export default function DualDomainPanel() {
         setFreqLoading(false);
     }, [inputFile, mode, gains, sliderConfig]);
 
-    // Auto-apply frequency domain changes (debounced)
     useEffect(() => {
         if (!inputFile || sliderConfig.length === 0) return;
         const timer = setTimeout(processFrequency, 400);
         return () => clearTimeout(timer);
     }, [processFrequency]);
 
-    // --- Wavelet Domain Processing ---
+    // ── Wavelet Domain Processing ───────────────────────────────────────────
     const processWavelet = useCallback(async () => {
         if (!inputFile || sliderConfig.length === 0) return;
         setWaveletLoading(true);
@@ -103,7 +112,6 @@ export default function DualDomainPanel() {
         setWaveletLoading(false);
     }, [inputFile, mode, waveletGains, optimalWavelet, sliderConfig]);
 
-    // Auto-apply wavelet domain changes (debounced)
     useEffect(() => {
         if (!inputFile || sliderConfig.length === 0) return;
         const timer = setTimeout(processWavelet, 400);
@@ -125,24 +133,44 @@ export default function DualDomainPanel() {
 
     return (
         <div className="flex flex-col gap-4 w-full">
-            {/* ─── ECG Diagnosis Panel (ECG mode only) ─── */}
-        {mode === 'ecg' && (
-            <ECGDiagnosis
-                fileId={outputFile?.output_id || inputFile?.id}
-                label={outputFile ? 'Equalized Output' : 'Original Signal'}
-            />
-        )}
 
-        {/* ─── Frequency Domain Section ─── */}
+            {/* ─── ECG Diagnosis Panel (ECG mode only) ────────────────────────
+                Uses inputFile.id (original upload) + current freq-domain gains.
+                This is intentional: the gains are applied in the FREQUENCY
+                domain on the original 12-channel signal before re-classifying,
+                creating a meaningful slider → disease score feedback loop.
+            ─────────────────────────────────────────────────────────────────── */}
+            {mode === 'ecg' && (
+                <ECGDiagnosis
+                    fileId={inputFile?.id}
+                    gains={gains}
+                    label="12-lead ECG"
+                />
+            )}
+
+            {/* ─── Frequency Domain Section ───────────────────────────────── */}
             <div className="flex flex-col gap-2 p-3 rounded-xl bg-gray-800/40 border border-cyan-900/40">
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                        📊 Frequency Domain (Fourier)
+                        Frequency Domain (Fourier)
                     </span>
-                    {freqLoading && <span className="text-[10px] text-gray-500 animate-pulse">processing…</span>}
+                    {freqLoading && (
+                        <span className="text-[10px] text-gray-500 animate-pulse">
+                            processing…
+                        </span>
+                    )}
                 </div>
 
-                {/* FFT Plot for frequency domain */}
+                {/* ECG mode hint */}
+                {mode === 'ecg' && sliderConfig.length > 0 && (
+                    <p className="text-[10px] text-gray-500 leading-snug">
+                        Each slider boosts or suppresses the frequency band
+                        associated with that arrhythmia. Set to 0 to remove
+                        a condition's signature; raise above 1 to amplify it.
+                    </p>
+                )}
+
+                {/* FFT Plot */}
                 <FFTViewer label="Freq" fileId={outputFile?.output_id} forceDomain="fourier" />
 
                 {/* Frequency-based sliders */}
@@ -158,17 +186,25 @@ export default function DualDomainPanel() {
                 </div>
             </div>
 
-            {/* ─── Wavelet Domain Section ─── */}
+            {/* ─── Wavelet Domain Section ─────────────────────────────────── */}
             <div className="flex flex-col gap-2 p-3 rounded-xl bg-gray-800/40 border border-purple-900/40">
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-purple-400">
-                        🌊 Wavelet Domain ({waveletLabel})
+                        Wavelet Domain ({waveletLabel})
                     </span>
-                    {waveletLoading && <span className="text-[10px] text-gray-500 animate-pulse">processing…</span>}
+                    {waveletLoading && (
+                        <span className="text-[10px] text-gray-500 animate-pulse">
+                            processing…
+                        </span>
+                    )}
                 </div>
 
                 {/* Wavelet Plot */}
-                <FFTViewer label="Wavelet" fileId={waveletOutputFile?.output_id} forceDomain={optimalWavelet} />
+                <FFTViewer
+                    label="Wavelet"
+                    fileId={waveletOutputFile?.output_id}
+                    forceDomain={optimalWavelet}
+                />
 
                 {/* Wavelet-based sliders */}
                 <div className="flex gap-2 overflow-x-auto pb-1">
