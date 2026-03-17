@@ -103,7 +103,7 @@ Signal_Equalizer/
 │   │   ├── routes_modes.py         ← Equalizer processing
 │   │   ├── routes_ai.py            ← AI separation + comparison
 │   │   ├── routes_basis.py         ← Best-basis detection
-│   │   └── routes_edge.py          ← Edge deploy + simulate + benchmark
+│   │   
 │   │
 │   ├── models/                     ← Pydantic request/response models
 │   │   ├── __init__.py
@@ -133,14 +133,14 @@ Signal_Equalizer/
 │   │   ├── voices_mode.py
 │   │   └── animals_mode.py
 │   │
-│   ├── edge/                       ← Edge deployment simulation
-│   │   ├── __init__.py
-│   │   ├── deploy.py               ← Config validation + deploy status
-│   │   ├── performance_monitor.py  ← Latency / CPU / memory tracking
-│   │   ├── edge_config.json        ← Device constraints + thresholds
-│   │   └── edge_simulator/
-│   │       ├── __init__.py
-│   │       └── simulator.py        ← Chunked processing + quantization sim
+│   ├
+│   │   
+│   │   
+│   │   
+│   │  
+│   │   
+│   │      
+│   │       
 │   │
 │   ├── utils/
 │   │   ├── __init__.py
