@@ -1,5 +1,19 @@
 # 🎵 Signal Equalizer
-
+![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=flat&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688?style=flat&logo=fastapi&logoColor=white)
+![NumPy](https://img.shields.io/badge/NumPy-1.2x-013243?style=flat&logo=numpy&logoColor=white)
+![SciPy](https://img.shields.io/badge/SciPy-1.x-8CAAE6?style=flat&logo=scipy&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?style=flat&logo=pytorch&logoColor=white)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-2.x-FF6F00?style=flat&logo=tensorflow&logoColor=white)
+![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Models-FFD21E?style=flat)
+![Asteroid](https://img.shields.io/badge/Asteroid-Toolkit-blueviolet?style=flat)
+![SpeechBrain](https://img.shields.io/badge/SpeechBrain-Separation-orange?style=flat)
+![Librosa](https://img.shields.io/badge/Librosa-0.10%2B-4B0082?style=flat&logo=audio-precision&logoColor=white)
+![PyWavelets](https://img.shields.io/badge/PyWavelets-DWT-brightgreen?style=flat)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.x-F7931E?style=flat&logo=scikitlearn&logoColor=white)
+![React](https://img.shields.io/badge/React-18.x-61DAFB?style=flat&logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-4.0%2B-646CFF?style=flat&logo=vite&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=flat&logo=tailwind-css&logoColor=white)
 > A full-stack web application for real-time audio equalization, AI-powered source separation, and signal analysis — built with **FastAPI** + **React**.
 
 ---
